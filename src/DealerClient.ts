@@ -154,17 +154,7 @@ export default class DealerClient extends EventEmitter {
   
     this.conn = null;
 
-    this.emit('error');
-
-    // this.lastScheduledReconnection = setTimeout(async () => {
-    //   this.lastScheduledReconnection = null;
-
-    //   try {
-    //     await this.connect();
-    //   } catch (ex) {
-    //     this.connectionInvalidated();
-    //   }
-    // }, 10000);
+    this.emit('close');
   }
 
   private static ConnectionHolder = class extends EventEmitter {
@@ -181,6 +171,7 @@ export default class DealerClient extends EventEmitter {
       this.ws.onopen = this.onOpen.bind(this);
       this.ws.onmessage = this.onMessage.bind(this);
       this.ws.onerror = this.onFailure.bind(this);
+      this.ws.onclose = this.onClose.bind(this);
     }
   
     private sendPing() {
@@ -258,6 +249,12 @@ export default class DealerClient extends EventEmitter {
     private onFailure(ev: WebSocket.ErrorEvent) {
       if (this.closed) return;
   
+      this.close();
+    }
+
+    private onClose() {
+      if (this.closed) return;
+
       this.close();
     }
   }

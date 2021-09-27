@@ -20,6 +20,7 @@ export class SDC extends EventEmitter implements MessageListener {
   private previousTrackPosition: number;
   private currentTrackDuration: number;
   private lastSentStateUpdatePayload: StatePayload;
+  private isDeviceActive: boolean = false;
 
   public get registered() {
     return !!this.connectionId;
@@ -33,28 +34,42 @@ export class SDC extends EventEmitter implements MessageListener {
 
     this.dealer = new DealerClient(token);
     this.dealer.addMessageListener(this, "hm://pusher/v1/connections/", "hm://track-playback/v1/command");
-    this.dealer.on('error', () => this.emit('error'));
+    this.dealer.on("close", () => this.emit("close"));
   }
 
   public async connect() {
     await this.dealer.connect();
   }
 
+  public close() {
+    this.dealer?.close();
+  }
+
   public getContext() {
     return this.currentContext;
   }
 
-  public nextTrack(skipped: boolean = false) {
-    const resp = this.currentContext.next(skipped ? 'fwdbtn' : 'unknown_reason');
-    if (typeof resp === 'string') throw new Error(resp);
+  public getTokenManager() {
+    return this.token;
+  }
 
-    this.setAllTrackPositions(resp.position);
+  public nextTrack(skipped: boolean = false) {
+    const resp = this.currentContext.next(skipped ? "fwdbtn" : "unknown_reason");
+    if (typeof resp === "string") throw new Error(resp);
+
+    this.setAllTrackPositions(0);
+    this.emit("play", {
+      position: 0,
+      paused: this.currentContext.isPaused(),
+      track: this.currentContext.getCurrentTrack(),
+    });
+
     this.updateState(DebugSource.BEFORE_TRACK_LOAD);
   }
 
   public previousTrack() {
     const resp = this.currentContext.previous();
-    if (typeof resp === 'string') throw new Error(resp);
+    if (typeof resp === "string") throw new Error(resp);
 
     this.setAllTrackPositions(resp.position);
     this.updateState(DebugSource.BEFORE_TRACK_LOAD);
@@ -194,7 +209,7 @@ export class SDC extends EventEmitter implements MessageListener {
     if (this.isCurrentStateRef(ref)) {
       this.currentContext.setStateMachine(new_machine);
       this.currentContext.setCurrentState(new_ref);
-      
+
       return Promise.resolve();
     }
 
@@ -329,10 +344,15 @@ export class SDC extends EventEmitter implements MessageListener {
 
     if (this.isCurrentStateRef(payload.prev_state_ref)) {
       if (payl_ref) {
-        var l = this.currentContext?.getStateRef() || null;
+        if (!this.isDeviceActive) {
+          this.isDeviceActive = true;
+          this.emit("activate");
+        }
+
+        var cur_ref = this.currentContext?.getStateRef() || null;
         if (!new_ref) throw new Error("New state reference is null");
 
-        if (this.currentContext && l?.state_id === new_ref.state_id) {
+        if (this.currentContext && cur_ref?.state_id === new_ref.state_id) {
           this.currentContext.setStateMachine(payl_machine);
           this.currentContext.setCurrentState(payl_ref);
           var stateChanged = false;
@@ -340,18 +360,18 @@ export class SDC extends EventEmitter implements MessageListener {
           if (stateChanged) {
             if (payl_ref.paused) {
               this.currentContext.setPaused(true);
-              
-              const pos = this.requestPosition();
-              this.emit("pause");
 
-              this.onPlayPause(true, pos);
+              this.requestPosition((pos) => {
+                this.emit("pause");
+                this.onPlayPause(true, pos);
+              });
             } else {
               this.currentContext.setPaused(false);
 
-              const pos = this.requestPosition();
-              this.emit("resume");
-
-              this.onPlayPause(false, pos);
+              this.requestPosition((pos) => {
+                this.emit("resume");
+                this.onPlayPause(false, pos);
+              });
             }
           }
 
@@ -364,11 +384,11 @@ export class SDC extends EventEmitter implements MessageListener {
           }
 
           if (!stateChanged) {
-            const pos = this.requestPosition();
-            this.emit('modify_state');
-            this.setAllTrackPositions(pos);
-
-            this.updateState(DebugSource.MODIFY_CURRENT_STATE);
+            this.requestPosition((pos) => {
+              this.emit("modify_state");
+              this.setAllTrackPositions(pos);
+              this.updateState(DebugSource.MODIFY_CURRENT_STATE);
+            });
           }
         } else {
           var context = TrackPlaybackContext.create();
@@ -390,19 +410,18 @@ export class SDC extends EventEmitter implements MessageListener {
     }
   }
 
-  private requestPosition() {
+  private async requestPosition(callback: (pos: number) => void) {
     let position = 0;
-    this.emit('fetch-pos', (pos: number) => position = pos);
-
-    return position;
+    this.emit("fetch-pos", callback);
   }
 
   private clearContextAndState() {
+    this.isDeviceActive = false;
     this.currentContext = null;
     this.updateState(DebugSource.STATE_CLEAR);
     this.setAllTrackPositions(undefined);
 
-    this.emit('stop');
+    this.emit("stop");
   }
 
   private setCurrentTrackPosition(pos: number) {
