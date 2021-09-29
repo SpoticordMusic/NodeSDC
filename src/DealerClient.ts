@@ -149,12 +149,12 @@ export default class DealerClient extends EventEmitter {
   }
 
   private connectionInvalidated() {
+    this.emit('close');
+
     if (!this.conn) return;
     if (this.lastScheduledReconnection != null) throw new Error('Illegal State');
   
     this.conn = null;
-
-    this.emit('close');
   }
 
   private static ConnectionHolder = class extends EventEmitter {

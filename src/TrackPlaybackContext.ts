@@ -63,6 +63,7 @@ export default class TrackPlaybackContext {
       duration_override: state.duration_override,
       position_offset: state.position_offset,
     };
+    this.pausedState = !!ref.paused;
   }
 
   public setCurrentState(ref: StateRef) {

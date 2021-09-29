@@ -53,6 +53,10 @@ export class SDC extends EventEmitter implements MessageListener {
     return this.token;
   }
 
+  public getDeviceID() {
+    return this.deviceId;
+  }
+
   public nextTrack(skipped: boolean = false) {
     const resp = this.currentContext.next(skipped ? "fwdbtn" : "unknown_reason");
     if (typeof resp === "string") throw new Error(resp);
