@@ -75,16 +75,24 @@ export class SDC extends EventEmitter implements MessageListener {
     const resp = this.currentContext.previous();
     if (typeof resp === "string") throw new Error(resp);
 
-    this.setAllTrackPositions(resp.position);
+    this.setAllTrackPositions(0);
+    this.emit("play", {
+      position: 0,
+      paused: this.currentContext.isPaused(),
+      track: this.currentContext.getCurrentTrack(),
+    });
+
     this.updateState(DebugSource.BEFORE_TRACK_LOAD);
   }
 
   private performCommand(payload: any) {
     switch (CommandType.parse(payload.type)) {
       case CommandType.SetVolume:
+        this.onVolumeChanged(payload.volume);
         break;
 
       case CommandType.LogOut:
+        this.dealer.close();
         break;
 
       case CommandType.ReplaceState:
@@ -95,6 +103,23 @@ export class SDC extends EventEmitter implements MessageListener {
         this.updateState(DebugSource.PING);
         break;
     }
+  }
+
+  private onVolumeChanged(volume: number) {
+    let payload = { volume };
+    this.setSequenceNumber(payload);
+
+    this.emit('volume', volume);
+
+    const url = `https://api.spotify.com/v1/track-playback/v1/devices/${this.deviceId}/volume`;
+
+    this.token.retrieveToken().then((token) => {
+      axios.put(url, payload, {
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+    });
   }
 
   private generateStatePayload(state_ref: StateRef, source?: string): StatePayload {
@@ -135,7 +160,7 @@ export class SDC extends EventEmitter implements MessageListener {
     );
   }
 
-  private setSequenceNumber(payload: StatePayload) {
+  private setSequenceNumber(payload: any) {
     if (!payload.seq_num) payload.seq_num = ++this.seq;
     return payload;
   }
