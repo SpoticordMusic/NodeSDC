@@ -2,6 +2,8 @@ import axios from "axios";
 import { EventEmitter } from "stream";
 
 export class TokenManager extends EventEmitter {
+  private static readonly TOKEN_EXPIRE_TRESHOLD = 6e4
+
   private access_token: string;
   private refresh_token: string;
   private client_id: string;
@@ -43,7 +45,7 @@ export class TokenManager extends EventEmitter {
       return this.access_token;
     }
 
-    if (Date.now() - 60 * 1000 > this.token_expire) {
+    if (Date.now() > this.token_expire - TokenManager.TOKEN_EXPIRE_TRESHOLD) {
       return this.retrieveTokenSync();
     }
 
@@ -56,7 +58,7 @@ export class TokenManager extends EventEmitter {
       return this.access_token;
     }
 
-    if (Date.now() - 60 * 1000 > this.token_expire) {
+    if (Date.now() > this.token_expire - TokenManager.TOKEN_EXPIRE_TRESHOLD) {
       if (!await this.refreshAccessToken()) {
         throw new Error('Failed to refresh access token');
       }
