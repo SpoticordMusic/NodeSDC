@@ -88,7 +88,7 @@ export class TokenManager extends EventEmitter {
     this.access_token = access_token;
     this.token_expire = Date.now() + (expires_in * 1000);
 
-    this.emit('token', access_token);
+    this.emit('token', { access_token, expires: Date.now() + expires_in * 1000 });
 
     return true;
   }
