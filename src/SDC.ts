@@ -61,6 +61,7 @@ export class SDC extends EventEmitter implements MessageListener {
     const resp = this.currentContext.next(skipped ? "fwdbtn" : "unknown_reason");
     if (typeof resp === "string") throw new Error(resp);
 
+    this.currentTrackDuration = this.currentContext.getCurrentTrack()?.metadata.duration;
     this.setAllTrackPositions(0);
     this.emit("play", {
       position: 0,
@@ -75,6 +76,7 @@ export class SDC extends EventEmitter implements MessageListener {
     const resp = this.currentContext.previous();
     if (typeof resp === "string") throw new Error(resp);
 
+    this.currentTrackDuration = this.currentContext.getCurrentTrack()?.metadata.duration;
     this.setAllTrackPositions(0);
     this.emit("play", {
       position: 0,
@@ -123,13 +125,12 @@ export class SDC extends EventEmitter implements MessageListener {
   }
 
   private generateStatePayload(state_ref: StateRef, source?: string): StatePayload {
-    const trackInfo = this.currentTrackDuration;
     return {
       state_ref,
       sub_state: {
         playback_speed: state_ref?.paused ? 0 : 1,
         position: this.currentTrackPosition,
-        duration: trackInfo || undefined,
+        duration: this.currentTrackDuration || undefined,
       },
       previous_position: this.previousTrackPosition,
       debug_source: source,
